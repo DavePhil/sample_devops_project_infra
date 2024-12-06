@@ -3,6 +3,16 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "aws_access_key_id" {
+  description = "AWS Access Key ID"
+  type        = string
+}
+
+variable "aws_secret_access_key" {
+  description = "AWS Secret Access Key"
+  type        = string
+}
+
 variable "ami_id" {
   description = "AMI ID for the EC2 instance"
   default     = "ami-011899242bb902164" # Ubuntu 20.04 LTS // us-east-1
