@@ -38,6 +38,11 @@ resource "aws_instance" "my_instance" {
       "sudo pip3 install ansible",
       "sudo chmod 600 /tmp/my-ssh-key.pem",
 
+      # Création du fichier vars.yml
+      "echo 'docker_user_name: \"${var.docker_user_name}\"' > /tmp/vars.yml",
+      "echo 'dockerhub_password: \"${var.dockerhub_pwd}\"' >> /tmp/vars.yml",
+      "echo 'image_name: \"${var.image_name}\"' >> /tmp/vars.yml",
+
       # Création dynamique de l'inventaire Ansible
       "echo '[servers]' > /tmp/inventory.ini",
       "echo 'my_server ansible_host=${self.public_ip}' >> /tmp/inventory.ini",
@@ -45,7 +50,7 @@ resource "aws_instance" "my_instance" {
       "echo 'ansible_ssh_user=ubuntu' >> /tmp/inventory.ini",
       "echo 'ansible_ssh_private_key_file=/tmp/my-ssh-key.pem' >> /tmp/inventory.ini",
       "echo 'ansible_ssh_common_args=\"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null\"' >> /tmp/inventory.ini",
-      "ansible-playbook -i /tmp/inventory.ini -u ubuntu --private-key /tmp/my-ssh-key.pem /tmp/playbook.yml"
+      "ansible-playbook -i /tmp/inventory.ini -u ubuntu --private-key /tmp/my-ssh-key.pem /tmp/playbook.yml --extra-vars '@/tmp/vars.yml'"
     ]
 
     connection {
