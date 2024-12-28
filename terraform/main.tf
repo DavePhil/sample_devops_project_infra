@@ -37,6 +37,8 @@ resource "aws_instance" "my_instance" {
       "sudo apt-get install -y python3-pip",
       "sudo pip3 install ansible",
       "sudo chmod 600 /tmp/my-ssh-key.pem",
+      "echo ${var.dockerhub_pwd}",
+      "echo ${var.docker_user_name}",
 
       # Création du fichier vars.yml
       "echo 'docker_user_name: \"${var.docker_user_name}\"' > /tmp/vars.yml",
