@@ -42,7 +42,7 @@ resource "aws_instance" "my_instance" {
 
       # Création du fichier vars.yml
       "echo 'docker_user_name: \"${var.docker_user_name}\"' > /tmp/vars.yml",
-      "echo 'dockerhub_password: \"${var.dockerhub_pwd}\"' >> /tmp/vars.yml",
+      "echo 'dockerhub_pwd: \"${var.dockerhub_pwd}\"' >> /tmp/vars.yml",
       "echo 'image_name: \"${var.image_name}\"' >> /tmp/vars.yml",
 
       # Création dynamique de l'inventaire Ansible
