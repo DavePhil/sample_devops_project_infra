@@ -77,17 +77,17 @@
         state: started
         enabled: yes
 
-    - name: Log in to Docker Hub
-      shell: sudo docker login -u "{{ docker_user_name }}" -p "{{ dockerhub_pwd }}"
-
-    - name: Pull the Docker image
-      shell: sudo docker pull "{{ image_name }}"
-
-    - name: Remove existing container
-      shell: sudo docker container rm -f test_pipeline || true
-
-    - name: Run the Docker container
-      shell: sudo docker run -d -p 8080:8080 --name test_pipeline "{{ image_name }}"
+#    - name: Log in to Docker Hub
+#      shell: sudo docker login -u "{{ docker_user_name }}" -p "{{ dockerhub_pwd }}"
+#
+#    - name: Pull the Docker image
+#      shell: sudo docker pull "{{ image_name }}"
+#
+#    - name: Remove existing container
+#      shell: sudo docker container rm -f test_pipeline || true
+#
+#    - name: Run the Docker container
+#      shell: sudo docker run -d -p 8080:8080 --name test_pipeline "{{ image_name }}"
 
 
   handlers:
