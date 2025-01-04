@@ -21,7 +21,7 @@ resource "aws_instance" "my_instance" {
   vpc_security_group_ids = [aws_security_group.sg1.id]
 
   provisioner "file" {
-    source      = "../ansible/playbook.yml"
+    source      = "./ansible/playbook.yml"
     destination = "/tmp/playbook.yml"
     connection {
       type        = "ssh"
@@ -32,7 +32,7 @@ resource "aws_instance" "my_instance" {
   }
 
   provisioner "file" {
-    source      = "../my-ssh-key.pem"
+    source      = "./my-ssh-key.pem"
     destination = "/tmp/my-ssh-key.pem"
     connection {
       type        = "ssh"
