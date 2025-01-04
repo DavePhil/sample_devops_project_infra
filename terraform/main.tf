@@ -70,7 +70,7 @@ resource "aws_instance" "my_instance" {
   #             EOF
 }
 
-resource "aws_security_group" "sg" {
+resource "aws_security_group" "sg1" {
   name        = "terraform-sg1"
   description = "Allow SSH and HTTP"
 
