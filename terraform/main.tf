@@ -7,7 +7,7 @@ resource "aws_instance" "my_instance" {
   }
 
   # Security Group to allow SSH access
-  vpc_security_group_ids = [aws_security_group.sg.id]
+  vpc_security_group_ids = [aws_security_group.sg1.id]
 
   provisioner "file" {
     source      = "../ansible/playbook.yml"
