@@ -71,7 +71,7 @@ resource "aws_instance" "my_instance" {
 }
 
 resource "aws_security_group" "sg" {
-  name        = "terraform-sg"
+  name        = "terraform-sg1"
   description = "Allow SSH and HTTP"
 
   ingress {
