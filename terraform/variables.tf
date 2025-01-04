@@ -30,7 +30,7 @@ variable "key_name" {
 
 variable "private_key_path" {
   description = "Path to your private SSH key"
-  default     = "../my-ssh-key.pem"
+  default     = "./my-ssh-key.pem"
 }
 
 variable "docker_user_name" {

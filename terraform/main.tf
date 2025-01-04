@@ -1,8 +1,6 @@
 terraform {
-  cloud {
-
+  backend "remote" {
     organization = "devopslearningM2"
-
     workspaces {
       name = "first_terraform"
     }
