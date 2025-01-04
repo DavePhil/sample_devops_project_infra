@@ -1,3 +1,14 @@
+terraform {
+  cloud {
+
+    organization = "devopslearningM2"
+
+    workspaces {
+      name = "first_terraform"
+    }
+  }
+}
+
 resource "aws_instance" "my_instance" {
   ami           = var.ami_id
   instance_type = var.instance_type
