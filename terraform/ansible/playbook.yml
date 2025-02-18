@@ -3,9 +3,6 @@
   hosts: servers
   become: yes
 
-  vars_files:
-    - group_vars/all.yml
-
   tasks:
     - name: Install Nginx
       apt:
@@ -21,12 +18,12 @@
 
     - name: Configure Nginx for proxying services
       copy:
-        dest: "{{ nginx_conf_path }}"
+        dest: "/etc/nginx/sites-available/default"
         content: |
           server {
             listen 80;
             server_name localhost;
-          
+
             location /myapp {
                 proxy_pass http://localhost:8080;
                 proxy_set_header Host $host;
@@ -45,7 +42,7 @@
             }
 
             location / {
-                root {{ nginx_root_path }};
+                root /var/www/html;
                 index index.html index.htm;
             }
           }
@@ -53,30 +50,36 @@
         - Check Nginx configuration
         - Restart Nginx
 
-    - name: Ensure correct permissions for /var/www/html
-      file:
-        path: "{{ nginx_root_path }}"
-        owner: www-data
-        group: www-data
-        mode: '0755'
-
     - name: Install Docker dependencies
       apt:
-        name: "{{ docker_dependencies }}"
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - lsb-release
+          - software-properties-common
         state: latest
         update_cache: yes
 
     - name: Add Docker GPG key
-      shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
 
     - name: Add Docker repository
-      shell: sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    - name: Update APT cache
+      ansible.builtin.apt:
+        update_cache: yes
 
     - name: Install Docker
       apt:
         name: docker-ce
         state: latest
-        update_cache: yes
 
     - name: Start and enable Docker
       service:
@@ -93,6 +96,7 @@
         name: nginx
         state: restarted
 
+---
 
 - name: Deploy common exporters
   hosts: all
