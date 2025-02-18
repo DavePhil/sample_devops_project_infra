@@ -96,8 +96,6 @@
         name: nginx
         state: restarted
 
----
-
 - name: Deploy common exporters
   hosts: all
   roles:
