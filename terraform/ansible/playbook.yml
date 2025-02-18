@@ -104,12 +104,12 @@
   tags:
     - exporters
 
-- name: Setup Prometheus and Alertmanager
+- name: Setup Prometheus
   hosts: prometheus
   roles:
     - prometheus.prometheus.blackbox_exporter
     - prometheus.prometheus.prometheus
-    - prometheus.prometheus.alertmanager
+#    - prometheus.prometheus.alertmanager
   tags:
     - prometheus
 
