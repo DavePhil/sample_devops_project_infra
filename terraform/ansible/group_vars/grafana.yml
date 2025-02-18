@@ -1,0 +1,16 @@
+grafana_ini:
+  server:
+    http_addr: "0.0.0.0"
+    http_port: 3000
+    root_url: "http://{{ ansible_default_ipv4.address }}:3000"
+    enable_gzip: true
+  security:
+    admin_user: "admin"
+    admin_password: "admin"
+  auth:
+    disable_login_form: false
+    disable_signout_menu: false
+  users:
+    allow_sign_up: false
+    default_theme: "dark"
+
