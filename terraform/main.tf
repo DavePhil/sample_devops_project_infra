@@ -32,6 +32,17 @@ resource "aws_instance" "my_instance" {
   }
 
   provisioner "file" {
+    source      = "./ansible/requirements.yml"
+    destination = "/tmp/requirements.yml"
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(var.private_key_path)
+      host        = self.public_ip
+    }
+  }
+
+  provisioner "file" {
     source      = "./my-ssh-key.pem"
     destination = "/tmp/my-ssh-key.pem"
     connection {
@@ -59,10 +70,15 @@ resource "aws_instance" "my_instance" {
       # Création dynamique de l'inventaire Ansible
       "echo '[servers]' > /tmp/inventory.ini",
       "echo 'my_server ansible_host=${self.public_ip}' >> /tmp/inventory.ini",
+      "echo '[prometheus]' > /tmp/inventory.ini",
+      "echo 'my_server' >> /tmp/inventory.ini",
+      "echo '[grafana]' > /tmp/inventory.ini",
+      "echo 'my_server' >> /tmp/inventory.ini",
       "echo '[servers:vars]' >> /tmp/inventory.ini",
       "echo 'ansible_ssh_user=ubuntu' >> /tmp/inventory.ini",
       "echo 'ansible_ssh_private_key_file=/tmp/my-ssh-key.pem' >> /tmp/inventory.ini",
       "echo 'ansible_ssh_common_args=\"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null\"' >> /tmp/inventory.ini",
+      "ansible-galaxy install -r /tmp/requirements.yml",
       "ansible-playbook -i /tmp/inventory.ini -u ubuntu --private-key /tmp/my-ssh-key.pem /tmp/playbook.yml"
     ]
 

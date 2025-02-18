@@ -1,7 +1,11 @@
 ---
-- name: Configure Server with Monitoring
+- name: Configure Server with Monitoring Stack
   hosts: servers
   become: yes
+
+  vars_files:
+    - group_vars/all.yml
+
   tasks:
     - name: Install Nginx
       apt:
@@ -15,9 +19,9 @@
         state: started
         enabled: yes
 
-    - name: Configure Nginx for proxying /myapp to port 8080
+    - name: Configure Nginx for proxying services
       copy:
-        dest: /etc/nginx/sites-available/default
+        dest: "{{ nginx_conf_path }}"
         content: |
           server {
             listen 80;
@@ -25,75 +29,42 @@
           
             location /myapp {
                 proxy_pass http://localhost:8080;
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection 'upgrade';
                 proxy_set_header Host $host;
-                proxy_cache_bypass $http_upgrade;
             }
-            
             location /prometheus {
                 proxy_pass http://localhost:9090;
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection 'upgrade';
                 proxy_set_header Host $host;
-                proxy_cache_bypass $http_upgrade;
             }
-            
             location /grafana {
                 proxy_pass http://localhost:3000;
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection 'upgrade';
                 proxy_set_header Host $host;
-                proxy_cache_bypass $http_upgrade;
             }
-          
-            location /exporter {
-                proxy_pass http://localhost:9100;
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection 'upgrade';
-                proxy_set_header Host $host;
-                proxy_cache_bypass $http_upgrade;
-            }
-            
             location /alertmanager {
                 proxy_pass http://localhost:9093;
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection 'upgrade';
                 proxy_set_header Host $host;
-                proxy_cache_bypass $http_upgrade;
             }
-          
+
             location / {
-                root /var/www/html;
+                root {{ nginx_root_path }};
                 index index.html index.htm;
             }
           }
       notify:
+        - Check Nginx configuration
         - Restart Nginx
 
     - name: Ensure correct permissions for /var/www/html
       file:
-        path: /var/www/html
+        path: "{{ nginx_root_path }}"
         owner: www-data
         group: www-data
         mode: '0755'
 
     - name: Install Docker dependencies
       apt:
-        name: "{{ item }}"
+        name: "{{ docker_dependencies }}"
         state: latest
         update_cache: yes
-      loop:
-        - apt-transport-https
-        - ca-certificates
-        - curl
-        - lsb-release
-        - software-properties-common
 
     - name: Add Docker GPG key
       shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -113,96 +84,34 @@
         state: started
         enabled: yes
 
-- name: Deploy common exporters
-  hosts: all
-  roles:
-    - prometheus.prometheus.node_exporter
-    - prometheus.prometheus.cadvisor
-  tags:
-    - exporters
-
-- name: Setup core monitoring software
-  hosts: prometheus
-  roles:
-    - prometheus.prometheus.blackbox_exporter
-    - prometheus.prometheus.prometheus
-    - prometheus.prometheus.alertmanager
-  tags:
-    - prometheus
-
-- name: Deploy grafana
-  hosts: grafana
-  roles:
-    - grafana.grafana.grafana
-  tags:
-    - grafana
-
-- name: Setup random exporters
-  hosts: all
-  become: true
-  vars:
-    random_exporter_ports: [9101, 9102, 9103]
-    node_exporter_textfile_dir: "/var/lib/node_exporter/textfile_collector"
-  tasks:
-    - name: Copy random_exporter binary
-      ansible.builtin.copy:
-        src: random
-        dest: /usr/local/bin/random_exporter
-        owner: root
-        group: root
-        mode: 0755
-      notify: Restart random_exporter
-
-    - name: Copy systemd service file
-      ansible.builtin.copy:
-        dest: "/etc/systemd/system/random_exporter@.service"
-        mode: 0644
-        content: |
-          [Unit]
-          Description=Random Metrics Exporter on %i
-          After=network.target
-          [Service]
-          Type=simple
-          User=nobody
-          Group=nogroup
-          ExecStart=/usr/local/bin/random_exporter -listen-address=:%i
-          SyslogIdentifier=random_exporter
-          Restart=always
-          [Install]
-          WantedBy=multi-user.target
-      notify: Restart random_exporter
-
-    - name: Ensure random_exporters are enabled
-      ansible.builtin.systemd:
-        name: "random_exporter@{{ item }}"
-        state: started
-        enabled: true
-      with_items: "{{ random_exporter_ports }}"
-
-  handlers:
-    - name: Restart random_exporter
-      ansible.builtin.systemd:
-        name: "random_exporter@{{ item }}"
-        state: restarted
-        daemon_reload: true
-        enabled: true
-      with_items: "{{ random_exporter_ports }}"
-
-- name: Add node textfile examples
-  hosts: all
-  become: true
-  tasks:
-    - name: Node CPU threshold
-      ansible.builtin.template:
-        src: node_metrics.prom.j2
-        dest: "{{ node_exporter_textfile_dir }}/node_metrics.prom"
-        owner: root
-        group: root
-        mode: 0644
+    - name: Deploy common exporters
+      hosts: all
+      roles:
+        - prometheus.prometheus.node_exporter
+        - prometheus.prometheus.cadvisor
       tags:
-        - node_exporter
+        - exporters
+
+    - name: Setup Prometheus and Alertmanager
+      hosts: prometheus
+      roles:
+        - prometheus.prometheus.blackbox_exporter
+        - prometheus.prometheus.prometheus
+        - prometheus.prometheus.alertmanager
+      tags:
+        - prometheus
+
+    - name: Deploy Grafana
+      hosts: grafana
+      roles:
+        - grafana.grafana.grafana
+      tags:
+        - grafana
 
   handlers:
+    - name: Check Nginx configuration
+      command: nginx -t
+
     - name: Restart Nginx
       service:
         name: nginx
