@@ -84,30 +84,6 @@
         state: started
         enabled: yes
 
-    - name: Deploy common exporters
-      hosts: all
-      roles:
-        - prometheus.prometheus.node_exporter
-        - prometheus.prometheus.cadvisor
-      tags:
-        - exporters
-
-    - name: Setup Prometheus and Alertmanager
-      hosts: prometheus
-      roles:
-        - prometheus.prometheus.blackbox_exporter
-        - prometheus.prometheus.prometheus
-        - prometheus.prometheus.alertmanager
-      tags:
-        - prometheus
-
-    - name: Deploy Grafana
-      hosts: grafana
-      roles:
-        - grafana.grafana.grafana
-      tags:
-        - grafana
-
   handlers:
     - name: Check Nginx configuration
       command: nginx -t
@@ -116,3 +92,28 @@
       service:
         name: nginx
         state: restarted
+
+
+- name: Deploy common exporters
+  hosts: all
+  roles:
+    - prometheus.prometheus.node_exporter
+    - prometheus.prometheus.cadvisor
+  tags:
+    - exporters
+
+- name: Setup Prometheus and Alertmanager
+  hosts: prometheus
+  roles:
+    - prometheus.prometheus.blackbox_exporter
+    - prometheus.prometheus.prometheus
+    - prometheus.prometheus.alertmanager
+  tags:
+    - prometheus
+
+- name: Deploy Grafana
+  hosts: grafana
+  roles:
+    - grafana.grafana.grafana
+  tags:
+    - grafana
