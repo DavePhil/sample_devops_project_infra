@@ -47,39 +47,38 @@
             }
           }
       notify:
-        - Check Nginx configuration
         - Restart Nginx
+
+    - name: Ensure correct permissions for /var/www/html
+      file:
+        path: /var/www/html
+        owner: www-data
+        group: www-data
+        mode: '0755'
 
     - name: Install Docker dependencies
       apt:
-        name:
-          - apt-transport-https
-          - ca-certificates
-          - curl
-          - lsb-release
-          - software-properties-common
+        name: "{{ item }}"
         state: latest
         update_cache: yes
+      loop:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - lsb-release
+        - software-properties-common
 
     - name: Add Docker GPG key
-      ansible.builtin.apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
-        state: present
+      shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 
     - name: Add Docker repository
-      ansible.builtin.apt_repository:
-        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-        state: present
-        filename: docker
-
-    - name: Update APT cache
-      ansible.builtin.apt:
-        update_cache: yes
+      shell: sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 
     - name: Install Docker
       apt:
         name: docker-ce
         state: latest
+        update_cache: yes
 
     - name: Start and enable Docker
       service:
@@ -88,9 +87,6 @@
         enabled: yes
 
   handlers:
-    - name: Check Nginx configuration
-      command: nginx -t
-
     - name: Restart Nginx
       service:
         name: nginx
