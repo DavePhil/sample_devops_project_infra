@@ -1,8 +1,9 @@
 ---
-- name: Configure Server
+- name: Configure Server with Monitoring (Prometheus, Node Exporter, Grafana)
   hosts: servers
   become: yes
   tasks:
+    # --------------------- NGINX --------------------- #
     - name: Install Nginx
       apt:
         name: nginx
@@ -15,14 +16,14 @@
         state: started
         enabled: yes
 
-    - name: Configure Nginx for proxying /myapp to port 8080
+    - name: Configure Nginx for proxying /myapp and /grafana
       copy:
         dest: /etc/nginx/sites-available/default
         content: |
           server {
             listen 80;
             server_name localhost;
-        
+          
             location /myapp {
                 proxy_pass http://localhost:8080;
                 proxy_http_version 1.1;
@@ -30,6 +31,14 @@
                 proxy_set_header Connection 'upgrade';
                 proxy_set_header Host $host;
                 proxy_cache_bypass $http_upgrade;
+            }
+
+            location /grafana/ {
+                proxy_pass http://localhost:3000/;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
             }
           
             location / {
@@ -47,6 +56,7 @@
         group: www-data
         mode: '0755'
 
+    # --------------------- DOCKER --------------------- #
     - name: Install Docker dependencies
       apt:
         name: "{{ item }}"
@@ -77,18 +87,76 @@
         state: started
         enabled: yes
 
-#    - name: Log in to Docker Hub
-#      shell: sudo docker login -u "{{ docker_user_name }}" -p "{{ dockerhub_pwd }}"
-#
-#    - name: Pull the Docker image
-#      shell: sudo docker pull "{{ image_name }}"
-#
-#    - name: Remove existing container
-#      shell: sudo docker container rm -f test_pipeline || true
+    # --------------------- PROMETHEUS & NODE EXPORTER --------------------- #
+    - name: Create Prometheus directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      loop:
+        - /etc/prometheus
+        - /var/lib/prometheus
 
-#    - name: Run the Docker container
-#      shell: sudo docker run -d -p 8080:8080 --name test_pipeline "{{ image_name }}"
+    - name: Copy Prometheus configuration
+      copy:
+        dest: /etc/prometheus/prometheus.yml
+        content: |
+          global:
+            scrape_interval: 15s
 
+          scrape_configs:
+            - job_name: 'prometheus'
+              static_configs:
+                - targets: ['localhost:9090']
+
+            - job_name: 'node_exporter'
+              static_configs:
+                - targets: ['localhost:9100']
+
+    - name: Run Prometheus container
+      docker_container:
+        name: prometheus
+        image: prom/prometheus:v2.45.0
+        ports:
+          - "9090:9090"
+        volumes:
+          - /etc/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+        restart_policy: always
+        state: started
+
+    - name: Run Node Exporter container
+      docker_container:
+        name: node_exporter
+        image: prom/node-exporter:v1.6.0
+        ports:
+          - "9100:9100"
+        restart_policy: always
+        state: started
+
+    # --------------------- GRAFANA --------------------- #
+    - name: Create Grafana directories
+      file:
+        path: /var/lib/grafana
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Run Grafana container
+      docker_container:
+        name: grafana
+        image: grafana/grafana:latest
+        ports:
+          - "3000:3000"
+        volumes:
+          - /var/lib/grafana:/var/lib/grafana
+        env:
+          GF_SECURITY_ADMIN_USER: "admin"
+          GF_SECURITY_ADMIN_PASSWORD: "admin"
+        restart_policy: always
+        state: started
 
   handlers:
     - name: Restart Nginx
