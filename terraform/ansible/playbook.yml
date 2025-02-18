@@ -1,9 +1,8 @@
 ---
-- name: Configure Server with Monitoring (Prometheus, Node Exporter, Grafana)
+- name: Configure Server with Monitoring
   hosts: servers
   become: yes
   tasks:
-    # --------------------- NGINX --------------------- #
     - name: Install Nginx
       apt:
         name: nginx
@@ -16,7 +15,7 @@
         state: started
         enabled: yes
 
-    - name: Configure Nginx for proxying /myapp and /grafana
+    - name: Configure Nginx for proxying /myapp to port 8080
       copy:
         dest: /etc/nginx/sites-available/default
         content: |
@@ -32,13 +31,41 @@
                 proxy_set_header Host $host;
                 proxy_cache_bypass $http_upgrade;
             }
-
-            location /grafana/ {
-                proxy_pass http://localhost:3000/;
+            
+            location /prometheus {
+                proxy_pass http://localhost:9090;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
                 proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_cache_bypass $http_upgrade;
+            }
+            
+            location /grafana {
+                proxy_pass http://localhost:3000;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_cache_bypass $http_upgrade;
+            }
+          
+            location /exporter {
+                proxy_pass http://localhost:9100;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_cache_bypass $http_upgrade;
+            }
+            
+            location /alertmanager {
+                proxy_pass http://localhost:9093;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_cache_bypass $http_upgrade;
             }
           
             location / {
@@ -56,7 +83,6 @@
         group: www-data
         mode: '0755'
 
-    # --------------------- DOCKER --------------------- #
     - name: Install Docker dependencies
       apt:
         name: "{{ item }}"
@@ -87,80 +113,97 @@
         state: started
         enabled: yes
 
-    # --------------------- PROMETHEUS & NODE EXPORTER --------------------- #
-    - name: Create Prometheus directories
-      file:
-        path: "{{ item }}"
-        state: directory
+- name: Deploy common exporters
+  hosts: all
+  roles:
+    - prometheus.prometheus.node_exporter
+    - prometheus.prometheus.cadvisor
+  tags:
+    - exporters
+
+- name: Setup core monitoring software
+  hosts: prometheus
+  roles:
+    - prometheus.prometheus.blackbox_exporter
+    - prometheus.prometheus.prometheus
+    - prometheus.prometheus.alertmanager
+  tags:
+    - prometheus
+
+- name: Deploy grafana
+  hosts: grafana
+  roles:
+    - grafana.grafana.grafana
+  tags:
+    - grafana
+
+- name: Setup random exporters
+  hosts: all
+  become: true
+  vars:
+    random_exporter_ports: [9101, 9102, 9103]
+    node_exporter_textfile_dir: "/var/lib/node_exporter/textfile_collector"
+  tasks:
+    - name: Copy random_exporter binary
+      ansible.builtin.copy:
+        src: random
+        dest: /usr/local/bin/random_exporter
         owner: root
         group: root
-        mode: '0755'
-      loop:
-        - /etc/prometheus
-        - /var/lib/prometheus
+        mode: 0755
+      notify: Restart random_exporter
 
-    - name: Copy Prometheus configuration
-      copy:
-        dest: /etc/prometheus/prometheus.yml
+    - name: Copy systemd service file
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/random_exporter@.service"
+        mode: 0644
         content: |
-          global:
-            scrape_interval: 15s
+          [Unit]
+          Description=Random Metrics Exporter on %i
+          After=network.target
+          [Service]
+          Type=simple
+          User=nobody
+          Group=nogroup
+          ExecStart=/usr/local/bin/random_exporter -listen-address=:%i
+          SyslogIdentifier=random_exporter
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+      notify: Restart random_exporter
 
-          scrape_configs:
-            - job_name: 'prometheus'
-              static_configs:
-                - targets: ['localhost:9090']
-
-            - job_name: 'node_exporter'
-              static_configs:
-                - targets: ['localhost:9100']
-
-    - name: Run Prometheus container
-      docker_container:
-        name: prometheus
-        image: prom/prometheus:v2.45.0
-        ports:
-          - "9090:9090"
-        volumes:
-          - /etc/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-        restart_policy: always
+    - name: Ensure random_exporters are enabled
+      ansible.builtin.systemd:
+        name: "random_exporter@{{ item }}"
         state: started
+        enabled: true
+      with_items: "{{ random_exporter_ports }}"
 
-    - name: Run Node Exporter container
-      docker_container:
-        name: node_exporter
-        image: prom/node-exporter:v1.6.0
-        ports:
-          - "9100:9100"
-        restart_policy: always
-        state: started
+  handlers:
+    - name: Restart random_exporter
+      ansible.builtin.systemd:
+        name: "random_exporter@{{ item }}"
+        state: restarted
+        daemon_reload: true
+        enabled: true
+      with_items: "{{ random_exporter_ports }}"
 
-    # --------------------- GRAFANA --------------------- #
-    - name: Create Grafana directories
-      file:
-        path: /var/lib/grafana
-        state: directory
+- name: Add node textfile examples
+  hosts: all
+  become: true
+  tasks:
+    - name: Node CPU threshold
+      ansible.builtin.template:
+        src: node_metrics.prom.j2
+        dest: "{{ node_exporter_textfile_dir }}/node_metrics.prom"
         owner: root
         group: root
-        mode: '0755'
-
-    - name: Run Grafana container
-      docker_container:
-        name: grafana
-        image: grafana/grafana:latest
-        ports:
-          - "3000:3000"
-        volumes:
-          - /var/lib/grafana:/var/lib/grafana
-        env:
-          GF_SECURITY_ADMIN_USER: "admin"
-          GF_SECURITY_ADMIN_PASSWORD: "admin"
-        restart_policy: always
-        state: started
+        mode: 0644
+      tags:
+        - node_exporter
 
   handlers:
     - name: Restart Nginx
       service:
         name: nginx
         state: restarted
-
